@@ -57,7 +57,7 @@ router.post('/qbook', function(req, res, next) {
   var storeno = req.body.storeno;
   var iscardholder = req.body.iscardholder;
   var currentdatetime = new Date();
-  var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone}`;
+  var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone} and STORENO=${storeno}`;
  db.query(getCount, function(err,row,fields) {
     if(err) {
       res.status(500).send({ error: 'Oops an error occured. Please try again later' })
@@ -67,13 +67,29 @@ router.post('/qbook', function(req, res, next) {
 
 res.status(400).send('You already have a queue number : '+row[0].QNO)
 }else{
-var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}",NOW())`;
+ var oFinalOutput = {
+customername : '',
+customerphone:'',
+storeno:'',
+storename : '',
+qno:'',
+waittime:''
+}
+  var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}",NOW())`;
   db.query(sql, function(err, result) {
     if(err) {
       res.status(500).send({ error: err })
     }
 //console.log(result);
     var updatedRow = result.insertId;
+    var getupdateDatasql = `SELECT * FROM QManagement where id=${updatedRow}`;
+  db.query(getupdateDatasql, function(err, rows, fields) {
+    if (err) {
+      res.status(500).send({ error: 'Something failed!' })
+    }
+    res.json(rows)
+  })
+
   })
 
 }
