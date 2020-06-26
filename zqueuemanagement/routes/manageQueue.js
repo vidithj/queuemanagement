@@ -45,14 +45,36 @@ sql = `UPDATE QManagement SET OUTFLOW=1,INFLOW=0,CHANGEDATETIME=NOW() WHERE STOR
 }
 db.query(sql, function(err, result) {
     if(err) {
-      res.status(500).send({ error: 'Something failed!' })
+      res.status(500).send({ error: 'inflow/outflow failed!' })
     }
-    res.json({'status': 'success'})
-  })
+ var getCount = `SELECT * FROM QManagement where INFLOW = 1`;
+  db.query(getCount, function (err, row, fields) {
+    if (err) {
+      res.status(500).send({ error: 'get count error' })
+    }
+var currentq = row.length;
+var updateCurrentQueue = `UPDATE QManagement SET CURRENTQNO=${currentq} WHERE STORENO=${storeno} and CUSTOMERPHONE=${cust_phone}`;
+ db.query(updateCurrentQueue, function (err, row, fields) {
+    if (err) {
+      res.status(500).send({ error: 'update current q error' })
+    }
+})
+})
+})
 });
 
 /*post method for create qno*/
+/*post method for create qno*/
 var ActivequeueCount;
+var oFinalOutput = {
+  customername: '',
+  customerphone: '',
+  storeno: '',
+  qno: '',
+  waittime: '',
+  storename: '',
+  brand: ''
+};
 router.post('/qbook', function (req, res, next) {
   var getCount = `SELECT * FROM QManagement where INFLOW = 1`;
   db.query(getCount, function (err, row, fields) {
@@ -61,20 +83,9 @@ router.post('/qbook', function (req, res, next) {
     }
     ActivequeueCount = row.length;
   })
-next()
-},function (req, res, next) {
- var oFinalOutput = {
-    customername:'',
-    customerphone:'',
-    storeno:'',
-    qno:'',
-    waittime:'',
-    currentqueue:'',
-    storename:'',
-    brand:''
-  }
- 
-var cust_phone = req.body.customerphone;
+  next()
+}, function (req, res, next) {
+  var cust_phone = req.body.customerphone;
   var cust_name = req.body.customername;
   var storeno = req.body.storeno;
   var iscardholder = req.body.iscardholder;
@@ -95,39 +106,43 @@ var cust_phone = req.body.customerphone;
         }
         //console.log(result);
         var updatedRow = result.insertId;
-        var insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow} where id=${updatedRow}`;
+	if(ActivequeueCount>20)
+            oFinalOutput.waittime = parseInt(ActivequeueCount/20);
+            else
+            oFinalOutput.waittime ="0";
+        var insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow},WAITTIME="${oFinalOutput.waittime}",CURRENTQNO=${ActivequeueCount} where id=${updatedRow}`;
         db.query(insertqnoSQL, function (err, rows, fields) {
           if (err) {
             res.status(500).send({ error: 'update qno failed!!' })
           }
-        var getupdateDatasql = `SELECT * FROM QManagement where id=${updatedRow}`;
-        db.query(getupdateDatasql, function (err, rows, fields) {
-          if (err) {
-            res.status(500).send({ error: 'insert data retrieval failed!!' })
-          }
-          oFinalOutput.customername = rows[0].CUTOMERNAME;
-          oFinalOutput.customerphone = rows[0].CUSTOMERPHONE;
-          oFinalOutput.storeno = rows[0].STORENO;
-          oFinalOutput.qno = rows[0].QNO;
-          oFinalOutput.waittime = rows[0].WAITTIME;
-          oFinalOutput.currentqueue = ActivequeueCount
-          var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${oFinalOutput.storeno}`;
-          db.query(getStoreDatasql, function (err, rows, fields) {
+          var getupdateDatasql = `SELECT * FROM QManagement where id=${updatedRow}`;
+          db.query(getupdateDatasql, function (err, rows, fields) {
             if (err) {
-              res.status(500).send({ error: 'store data retreival failed!!' })
+              res.status(500).send({ error: 'insert data retrieval failed!!' })
             }
-            oFinalOutput.storename = rows[0].STORENAME;
-            oFinalOutput.brand = rows[0].BRAND;
-            res.json(oFinalOutput)
+            oFinalOutput.customername = rows[0].CUTOMERNAME;
+            oFinalOutput.customerphone = rows[0].CUSTOMERPHONE;
+            oFinalOutput.storeno = rows[0].STORENO;
+            oFinalOutput.qno = rows[0].QNO;
+            //oFinalOutput.currentqueue = ActivequeueCount
+	    var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${oFinalOutput.storeno}`;
+            db.query(getStoreDatasql, function (err, rows, fields) {
+           if (err) {
+            res.status(500).send({ error: 'store data retreival failed!!' })
+           }
+         oFinalOutput.storename = rows[0].STORENAME;
+        oFinalOutput.brand = rows[0].BRAND;
+        res.json(oFinalOutput)
+  	})
+
           })
         })
-})
       })
 
     }
+
   })
   //res.json(oFinalOutput)
 })
-
-
 module.exports = router;
+
