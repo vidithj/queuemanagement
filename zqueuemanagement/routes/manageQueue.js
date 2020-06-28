@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 var db = require('../db');
+const fast2sms = require('fast-two-sms');
 var bodyParser = require('body-parser');
 
 router.use(bodyParser.json()); // for parsing application/json
@@ -58,6 +59,7 @@ var updateCurrentQueue = `UPDATE QManagement SET CURRENTQNO=${currentq} WHERE ST
     if (err) {
       res.status(500).send({ error: 'update current q error' })
     }
+res.send('Inflow/Outflow updated');
 })
 })
 })
@@ -73,7 +75,8 @@ var oFinalOutput = {
   qno: '',
   waittime: '',
   storename: '',
-  brand: ''
+  brand: '',
+ SMSsent : ''
 };
 router.post('/qbook', function (req, res, next) {
   var getCount = `SELECT * FROM QManagement where INFLOW = 1`;
@@ -120,18 +123,26 @@ router.post('/qbook', function (req, res, next) {
             if (err) {
               res.status(500).send({ error: 'insert data retrieval failed!!' })
             }
-            oFinalOutput.customername = rows[0].CUTOMERNAME;
+            oFinalOutput.customername = rows[0].CUSTOMERNAME;
             oFinalOutput.customerphone = rows[0].CUSTOMERPHONE;
             oFinalOutput.storeno = rows[0].STORENO;
             oFinalOutput.qno = rows[0].QNO;
             //oFinalOutput.currentqueue = ActivequeueCount
 	    var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${oFinalOutput.storeno}`;
-            db.query(getStoreDatasql, function (err, rows, fields) {
+            db.query(getStoreDatasql, async function (err, rows, fields) {
            if (err) {
             res.status(500).send({ error: 'store data retreival failed!!' })
            }
          oFinalOutput.storename = rows[0].STORENAME;
         oFinalOutput.brand = rows[0].BRAND;
+	var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
+        var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+".\nWe wish you a great shopping experience to you";
+	var  info = await fast2sms.sendMessage({
+	authorization:'Bc1nE7haDPtUV6zCmXZNLRYd4f5l3xHeuyoS9QFT2bMJviskIKdhEsZ40JMuplk9XN7za5Ie8DOvrGmT',
+	message :msgString,
+	numbers:[oFinalOutput.customerphone]
+	});
+	oFinalOutput.SMSsent = info.return;
         res.json(oFinalOutput)
   	})
 
