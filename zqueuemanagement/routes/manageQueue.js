@@ -48,19 +48,13 @@ db.query(sql, function(err, result) {
     if(err) {
       res.status(500).send({ error: 'inflow/outflow failed!' })
     }
- var getCount = `SELECT * FROM QManagement where INFLOW = 1`;
-  db.query(getCount, function (err, row, fields) {
+
+ var getUpdatedrow = `SELECT * FROM QManagement where STORENO=${storeno} and CUSTOMERPHONE=${cust_phone}`;
+  db.query(getUpdatedrow, function (err, row, fields) {
     if (err) {
       res.status(500).send({ error: 'get count error' })
     }
-var currentq = row.length;
-var updateCurrentQueue = `UPDATE QManagement SET CURRENTQNO=${currentq} WHERE STORENO=${storeno} and CUSTOMERPHONE=${cust_phone}`;
- db.query(updateCurrentQueue, function (err, row, fields) {
-    if (err) {
-      res.status(500).send({ error: 'update current q error' })
-    }
-res.send('Inflow/Outflow updated');
-})
+res.json(row[0]);
 })
 })
 });
@@ -76,13 +70,15 @@ var oFinalOutput = {
   waittime: '',
   storename: '',
   brand: '',
- SMSsent : ''
+  priorityqno:''
+ //SMSsent : ''
 };
 router.post('/qbook', function (req, res, next) {
-  var getCount = `SELECT * FROM QManagement where INFLOW = 1`;
+console.log(req.body);
+  var getCount = `SELECT * FROM QManagement where INFLOW = 1 and STORENO=${req.body.storeno}`;
   db.query(getCount, function (err, row, fields) {
     if (err) {
-      res.status(500).send({ error: 'Oops an error occured. Please try again later' })
+      res.status(500).send({ error: 'Oops an error occured during the count!' })
     }
     ActivequeueCount = row.length;
   })
@@ -100,7 +96,15 @@ router.post('/qbook', function (req, res, next) {
     }
     //console.log(result);
     if (row.length == 1) {
-      res.status(400).send('You already have a queue number : ' + row[0].QNO)
+	var oresObj = {
+         "qno" : '',
+         "customername" :'',
+         "storeno" : ''
+        }
+    oresObj.qno = row[0].QNO;
+    oresObj.customername = row[0].CUSTOMERNAME;
+    oresObj.storeno = row[0].STORENO;
+      res.status(400).send(oresObj);
     } else if (row.length == 0) {
       var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}",NOW())`;
       db.query(sql, function (err, result) {
@@ -113,7 +117,7 @@ router.post('/qbook', function (req, res, next) {
             oFinalOutput.waittime = parseInt(ActivequeueCount/20);
             else
             oFinalOutput.waittime ="0";
-        var insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow},WAITTIME="${oFinalOutput.waittime}",CURRENTQNO=${ActivequeueCount} where id=${updatedRow}`;
+        var insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow},WAITTIME="${oFinalOutput.waittime}" where id=${updatedRow}`;
         db.query(insertqnoSQL, function (err, rows, fields) {
           if (err) {
             res.status(500).send({ error: 'update qno failed!!' })
@@ -129,20 +133,21 @@ router.post('/qbook', function (req, res, next) {
             oFinalOutput.qno = rows[0].QNO;
             //oFinalOutput.currentqueue = ActivequeueCount
 	    var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${oFinalOutput.storeno}`;
-            db.query(getStoreDatasql, async function (err, rows, fields) {
+            db.query(getStoreDatasql, function (err, rows, fields) {
            if (err) {
             res.status(500).send({ error: 'store data retreival failed!!' })
            }
          oFinalOutput.storename = rows[0].STORENAME;
-        oFinalOutput.brand = rows[0].BRAND;
-	var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
+         oFinalOutput.brand = rows[0].BRAND;
+	 oFinalOutput.priorityqno = '';
+	/* var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
         var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+".\nWe wish you a great shopping experience to you";
 	var  info = await fast2sms.sendMessage({
 	authorization:'Bc1nE7haDPtUV6zCmXZNLRYd4f5l3xHeuyoS9QFT2bMJviskIKdhEsZ40JMuplk9XN7za5Ie8DOvrGmT',
 	message :msgString,
 	numbers:[oFinalOutput.customerphone]
 	});
-	oFinalOutput.SMSsent = info.return;
+	oFinalOutput.SMSsent = info.return; */ 
         res.json(oFinalOutput)
   	})
 
