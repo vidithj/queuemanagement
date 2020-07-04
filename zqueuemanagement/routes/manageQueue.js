@@ -3,18 +3,50 @@ var router = express.Router();
 var db = require('../db');
 const fast2sms = require('fast-two-sms');
 var bodyParser = require('body-parser');
-
+var twilio_accountSid = 'AC739b76f3b5568195af3cf629e3bf0c43';
+var twilio_authToken = '3876499fbe075001f3da9b2afde18da2';
+var twilio_client = require('twilio')(twilio_accountSid, twilio_authToken);
 router.use(bodyParser.json()); // for parsing application/json
 //router.use(bodyParser.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded
 
 /* get method for fetch all qno. */
 router.get('/qinfo', function(req, res, next) {
-  var sql = "SELECT * FROM QManagement";
+  var sql = "SELECT * FROM QManagement where OUTFLOW!=1";
   db.query(sql, function(err, rows, fields) {
     if (err) {
       res.status(500).send({ error: 'Something failed!' })
     }
     res.json(rows)
+  })
+});
+
+/* get method for fetch particular storeno. */
+var finalData = {
+"storeno":'',
+"storename":'',
+"brand":'',
+"qinfo":[]
+};
+router.get('/qinfostore/:id', function(req, res, next) {
+var storeno = req.params.id;
+console.log(storeno);
+ var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${storeno}`;
+db.query(getStoreDatasql, function(err, rows, fields) {
+    if (err) {
+      res.status(500).send({ error: 'Something failed!' })
+    }
+    finalData.storename = rows[0].STORENAME;
+    finalData.brand = rows[0].BRAND;
+    finalData.storeno = rows[0].STORENO;
+  })
+
+  var sql = `SELECT * FROM QManagement where STORENO=${storeno} and OUTFLOW!=1`;
+  db.query(sql, function(err, rows, fields) {
+    if (err) {
+      res.status(500).send({ error: 'Something failed!' })
+    }
+	finalData.qinfo = rows;
+    res.json(finalData);
   })
 });
 
@@ -59,6 +91,7 @@ res.json(row[0]);
 })
 });
 
+
 /*post method for create qno*/
 /*post method for create qno*/
 var ActivequeueCount;
@@ -71,10 +104,12 @@ var oFinalOutput = {
   storename: '',
   brand: '',
   priorityqno:''
- //SMSsent : ''
+// SMSsent : ''
 };
+var priorityqcount;
+var insertqnoSQL ;
 router.post('/qbook', function (req, res, next) {
-console.log(req.body);
+//console.log(req.body);
   var getCount = `SELECT * FROM QManagement where INFLOW = 1 and STORENO=${req.body.storeno}`;
   db.query(getCount, function (err, row, fields) {
     if (err) {
@@ -82,6 +117,13 @@ console.log(req.body);
     }
     ActivequeueCount = row.length;
   })
+var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where OUTFLOW !=1`;
+            db.query(selectpriorityqno,function (err, row, fields) {
+              if (err) {
+                res.status(500).send({ error: 'Oops an error occured during the priority que fetch!' })
+              }
+         priorityqcount =parseInt(row[0].count)+1;
+})
   next()
 }, function (req, res, next) {
   var cust_phone = req.body.customerphone;
@@ -94,7 +136,7 @@ console.log(req.body);
     if (err) {
       res.status(500).send({ error: 'Oops an error occured. Please try again later' })
     }
-    //console.log(result);
+	console.log(currentdatetime);
     if (row.length == 1) {
 	var oresObj = {
          "qno" : '',
@@ -106,6 +148,12 @@ console.log(req.body);
     oresObj.storeno = row[0].STORENO;
       res.status(400).send(oresObj);
     } else if (row.length == 0) {
+/*	if(new Date().getHours() >= 18 && new Date().getHours() <= 19 && ActivequeueCount > 20){
+	res.status(400).send({ error: 'Thank you for visiting our Store but we are currently closing. Hope you visit us tomorrow again' });
+	}
+	if(new Date().getHours()>= 19){
+	res.status(400).send({ error: 'Thank you for visiting our Store but we are currently closed. Hope you visit us tomorrow again' });
+	} */
       var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}",NOW())`;
       db.query(sql, function (err, result) {
         if (err) {
@@ -117,10 +165,18 @@ console.log(req.body);
             oFinalOutput.waittime = parseInt(ActivequeueCount/20);
             else
             oFinalOutput.waittime ="0";
-        var insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow},WAITTIME="${oFinalOutput.waittime}" where id=${updatedRow}`;
-        db.query(insertqnoSQL, function (err, rows, fields) {
+	if(iscardholder == 1){
+	oFinalOutput.priorityqno=priorityqcount;
+	//console.log(oFinalOutput.priorityqno+"text"+priorityqcount);
+	insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow},WAITTIME="${oFinalOutput.waittime}",PRIORITYQNO=${oFinalOutput.priorityqno} where id=${updatedRow}`;
+       // console.log(insertqnoSQL); 
+	 }else{
+	oFinalOutput.priorityqno=0;
+        insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow},WAITTIME="${oFinalOutput.waittime}" where id=${updatedRow}`;
+       	}
+	   db.query(insertqnoSQL, function (err, rows, fields) {
           if (err) {
-            res.status(500).send({ error: 'update qno failed!!' })
+            res.status(500).send({ error: 'update qno failed!!'+err })
           }
           var getupdateDatasql = `SELECT * FROM QManagement where id=${updatedRow}`;
           db.query(getupdateDatasql, function (err, rows, fields) {
@@ -139,15 +195,26 @@ console.log(req.body);
            }
          oFinalOutput.storename = rows[0].STORENAME;
          oFinalOutput.brand = rows[0].BRAND;
-	 oFinalOutput.priorityqno = '';
-	/* var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
-        var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+".\nWe wish you a great shopping experience to you";
-	var  info = await fast2sms.sendMessage({
+	// oFinalOutput.priorityqno = '';
+	 var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
+       var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.";
+	 var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n https://bit.ly/3dToRQ5";
+/*	var  info = await fast2sms.sendMessage({
 	authorization:'Bc1nE7haDPtUV6zCmXZNLRYd4f5l3xHeuyoS9QFT2bMJviskIKdhEsZ40JMuplk9XN7za5Ie8DOvrGmT',
 	message :msgString,
 	numbers:[oFinalOutput.customerphone]
 	});
-	oFinalOutput.SMSsent = info.return; */ 
+/*	oFinalOutput.SMSsent = info.return;*/
+	
+/*	twilio_client.messages.create({
+	to:oFinalOutput.customerphone,
+	from:'+12016601219',
+	body :msgString
+},function (err,msg){
+	if(err){
+	console.log(err);	
+}
+});*/  
         res.json(oFinalOutput)
   	})
 
@@ -159,6 +226,57 @@ console.log(req.body);
 
   })
   //res.json(oFinalOutput)
-})
+});
+
+
+
+router.post('/qsmsbook', function (req, res, next) {
+console.log(req.body);
+var msgFrom = req.body.From;
+var msgBody = req.body.Body;
+res.send(`
+<Response>
+<Message>
+Hello ${msgFrom} and said ${msgBody}.
+</Message>
+</Response>
+`);
+});
+
+/* delete particular id  */
+router.delete('/qdelete/:id', function(req, res, next) {
+  var id = req.params.id;
+  var sql = `DELETE FROM QManagement WHERE id=${id}`;
+  db.query(sql, function(err, result) {
+    if(err) {
+      res.status(500).send({ error: 'delete id failed!' })
+    }
+    res.json({'status': 'success'})
+  })
+});
+
+/* delete whole table content */
+router.delete('/qdelete', function(req, res, next) {
+  var id = req.params.id;
+  var sql = `TRUNCATE QManagement`;
+  db.query(sql, function(err, result) {
+    if(err) {
+      res.status(500).send({ error: 'truncate failed!' })
+    }
+    res.json({'status': 'success'})
+  })
+});
+
+/* delete for particular store */ 
+router.delete('/storeqdelete/:id', function(req, res, next) {
+  var id = req.params.id;
+  var sql = `DELETE FROM QManagement WHERE STORENO=${id}`;
+  db.query(sql, function(err, result) {
+    if(err) {
+      res.status(500).send({ error: 'delete store failed!' })
+    }
+    res.json({'status': 'success'})
+  })
+});
 module.exports = router;
 
