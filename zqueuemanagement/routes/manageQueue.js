@@ -27,6 +27,10 @@ console.log(process.env.API_KEY);
   })
 });
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /* get method for fetch particular storeno. */
 var finalData = {
 "storeno":'',
@@ -98,6 +102,13 @@ res.json(row[0]);
 })
 });
 
+async function getShortURL(url){
+var a = shortUrl.short(url, function(err, url){
+    console.log(url);
+return url;
+});
+return a;
+}
 
 /*post method for create qno*/
 /*post method for create qno*/
@@ -221,40 +232,68 @@ console.log(currentTime);
          oFinalOutput.storename = rows[0].STORENAME;
          oFinalOutput.brand = rows[0].BRAND;
 	oFinalOutput.location = rows[0].Location;
-var Surl ="https://master.d1zs89y43xrlec.amplifyapp.com/bookingConfirmation?storeName="+oFinalOutput.storename+"&qno="+oFinalOutput.qno+"&customerName="+oFinalOutput.customername+"&location="+oFinalOutput.location+"&brand="+oFinalOutput.brand+"&waitTime="+oFinalOutput.waittime ;
+var Surl ="https://master.d1zs89y43xrlec.amplifyapp.com/bookingConfirmation?storeName="+oFinalOutput.storename+"&qno="+oFinalOutput.qno+"&customerName="+oFinalOutput.customername+"&location="+oFinalOutput.location+"&brand="+oFinalOutput.brand+"&waitTime="+oFinalOutput.waittime+"&isCardHolder="+iscardholder ;
 	// oFinalOutput.priorityqno = '';
 	console.log(Surl);
-shortUrl.short(Surl, function(err, url){
+
+/*shortUrl.short(Surl, function(err, url){
     console.log(url);
 shortURL = url;
-});
+
+*/
+Surl = encodeURI(Surl);
+console.log(Surl);
+         var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
+var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here \n"+Surl;
+var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here\n"+Surl;
+        var finalmsg;   
+if(iscardholder == 1){
+finalmsg = msgstring2;
+        }else{
+finalmsg= msgString;
+        }
+      twilio_client.messages.create({
+        to:oFinalOutput.customerphone,
+        from:'+17135681789',
+        body :finalmsg
+},function (err,msg){
+        if(err){
+        console.log(err);       
+} 
+console.log(msg);
+});  
+console.log("here is "+finalmsg); 
+//}) 
+/*console.log("return"+shortURL);
 	 var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
-       var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\nYour booking details are available at"+shortURL;
-	 var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable on"+shortURL;
+var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\nYour booking details are available here "+shortURL;
+var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here "+shortURL;
 	var finalmsg;	
 if(iscardholder == 1){
 finalmsg = msgstring2;
 	}else{
 finalmsg= msgString;
 	}
-
-/*	var  info = await fast2sms.sendMessage({
+console.log("small"+shortURL);
+/*var num = oFinalOutput.customerphone.split("+91")[1];
+	var  info = await fast2sms.sendMessage({
 	authorization:'Bc1nE7haDPtUV6zCmXZNLRYd4f5l3xHeuyoS9QFT2bMJviskIKdhEsZ40JMuplk9XN7za5Ie8DOvrGmT',
-	message :msgString,
-	numbers:[oFinalOutput.customerphone]
+	message :finalmsg,
+	numbers:[num]
 	});
 /*	oFinalOutput.SMSsent = info.return;*/
 	
-	twilio_client.messages.create({
+/*	twilio_client.messages.create({
 	to:oFinalOutput.customerphone,
-	from:'+12016601219',
+	from:'+17135681789',
 	body :finalmsg
 },function (err,msg){
 	if(err){
 	console.log(err);	
-}
+} 
 console.log(msg);
-});  
+}); */  
+//console.log("here is "+finalmsg); 
         res.json(oFinalOutput)
   	})
 
