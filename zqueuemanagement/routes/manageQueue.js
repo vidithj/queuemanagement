@@ -3,14 +3,21 @@ var router = express.Router();
 var db = require('../db');
 const fast2sms = require('fast-two-sms');
 var bodyParser = require('body-parser');
-var twilio_accountSid = 'AC739b76f3b5568195af3cf629e3bf0c43';
-var twilio_authToken = '3876499fbe075001f3da9b2afde18da2';
+var dotenv = require('dotenv');
+const cron = require("node-cron");
+var shortUrl = require('node-url-shortener');
+dotenv.config({
+path:'./.env'
+});
+var twilio_accountSid = process.env.TWILIO_ACCOUNTSID;
+var twilio_authToken = process.env.TWILIO_AUTHTOKEN;
 var twilio_client = require('twilio')(twilio_accountSid, twilio_authToken);
+
 router.use(bodyParser.json()); // for parsing application/json
 //router.use(bodyParser.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded
-
 /* get method for fetch all qno. */
 router.get('/qinfo', function(req, res, next) {
+console.log(process.env.API_KEY);
   var sql = "SELECT * FROM QManagement where OUTFLOW!=1";
   db.query(sql, function(err, rows, fields) {
     if (err) {
@@ -103,11 +110,14 @@ var oFinalOutput = {
   waittime: '',
   storename: '',
   brand: '',
-  priorityqno:''
+  priorityqno:'',
+  location: ''
 // SMSsent : ''
 };
 var priorityqcount;
 var insertqnoSQL ;
+var currentTime;
+var shortURL;
 router.post('/qbook', function (req, res, next) {
 //console.log(req.body);
   var getCount = `SELECT * FROM QManagement where INFLOW = 1 and STORENO=${req.body.storeno}`;
@@ -115,9 +125,12 @@ router.post('/qbook', function (req, res, next) {
     if (err) {
       res.status(500).send({ error: 'Oops an error occured during the count!' })
     }
+	if(row)
     ActivequeueCount = row.length;
+else 
+ActivequeueCount = 0;
   })
-var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where OUTFLOW !=1`;
+var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where OUTFLOW !=1 and STORENO=${req.body.storeno}`;
             db.query(selectpriorityqno,function (err, row, fields) {
               if (err) {
                 res.status(500).send({ error: 'Oops an error occured during the priority que fetch!' })
@@ -126,6 +139,16 @@ var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where
 })
   next()
 }, function (req, res, next) {
+console.log(req.body);
+var options = {
+    timeZone: "America/New_York",
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric'
+};
+var formatter = new Intl.DateTimeFormat([], options);
+  var USATime = formatter.format(new Date());
+ currentTime = new Date(USATime);
+console.log(currentTime);
   var cust_phone = req.body.customerphone;
   var cust_name = req.body.customername;
   var storeno = req.body.storeno;
@@ -148,12 +171,14 @@ var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where
     oresObj.storeno = row[0].STORENO;
       res.status(400).send(oresObj);
     } else if (row.length == 0) {
-/*	if(new Date().getHours() >= 18 && new Date().getHours() <= 19 && ActivequeueCount > 20){
-	res.status(400).send({ error: 'Thank you for visiting our Store but we are currently closing. Hope you visit us tomorrow again' });
+/*	if(currentTime.getHours() >= 18 && currentTime.getHours() <= 19 && ActivequeueCount > 20){
+	res.status(400).send({ msg: 'Thank you for visiting our Store but we are currently closing. Hope you visit us tomorrow again' });
+	return;
 	}
-	if(new Date().getHours()>= 19){
-	res.status(400).send({ error: 'Thank you for visiting our Store but we are currently closed. Hope you visit us tomorrow again' });
-	} */
+	if(currentTime.getHours()>= 19 || currentTime.getHours()<= 11){
+	res.status(400).send({ msg: 'Thank you for visiting our Store.We are open from 12PM to 7PM everyday. Hope to see you soon.' });
+	return;	
+} */
       var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}",NOW())`;
       db.query(sql, function (err, result) {
         if (err) {
@@ -195,10 +220,24 @@ var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where
            }
          oFinalOutput.storename = rows[0].STORENAME;
          oFinalOutput.brand = rows[0].BRAND;
+	oFinalOutput.location = rows[0].Location;
+var Surl ="https://master.d1zs89y43xrlec.amplifyapp.com/bookingConfirmation?storeName="+oFinalOutput.storename+"&qno="+oFinalOutput.qno+"&customerName="+oFinalOutput.customername+"&location="+oFinalOutput.location+"&brand="+oFinalOutput.brand+"&waitTime="+oFinalOutput.waittime ;
 	// oFinalOutput.priorityqno = '';
+	console.log(Surl);
+shortUrl.short(Surl, function(err, url){
+    console.log(url);
+shortURL = url;
+});
 	 var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
-       var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.";
-	 var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n https://bit.ly/3dToRQ5";
+       var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\nYour booking details are available at"+shortURL;
+	 var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable on"+shortURL;
+	var finalmsg;	
+if(iscardholder == 1){
+finalmsg = msgstring2;
+	}else{
+finalmsg= msgString;
+	}
+
 /*	var  info = await fast2sms.sendMessage({
 	authorization:'Bc1nE7haDPtUV6zCmXZNLRYd4f5l3xHeuyoS9QFT2bMJviskIKdhEsZ40JMuplk9XN7za5Ie8DOvrGmT',
 	message :msgString,
@@ -206,15 +245,16 @@ var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where
 	});
 /*	oFinalOutput.SMSsent = info.return;*/
 	
-/*	twilio_client.messages.create({
+	twilio_client.messages.create({
 	to:oFinalOutput.customerphone,
 	from:'+12016601219',
-	body :msgString
+	body :finalmsg
 },function (err,msg){
 	if(err){
 	console.log(err);	
 }
-});*/  
+console.log(msg);
+});  
         res.json(oFinalOutput)
   	})
 
@@ -278,5 +318,62 @@ router.delete('/storeqdelete/:id', function(req, res, next) {
     res.json({'status': 'success'})
   })
 });
+
+router.get('/schedulejob', function (req, res, next) {
+console.log('smthing1');
+var task = cron.schedule("* * * * *", function() {
+  console.log("---------------------");
+  console.log("Running Cron Job");
+var options = {
+    timeZone: "America/New_York",
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric'
+};
+
+var formatter = new Intl.DateTimeFormat([], options);
+var currentTime = formatter.format(new Date());
+if(new Date(currentTime).getHours() == 23 && new Date(currentTime).getMinutes() == 30){
+cronSchedule();
+}else{
+console.log('Not the exact time');
+}
+  },{
+scheduled: true,
+timezone: 'America/New_York'
+});
+console.log('smthing');
+task.start();
+
+res.send('ended');
+});
+
+async function cronSchedule(){
+console.log('func');
+var sql = `TRUNCATE QManagement`;
+  db.query(sql, function(err, result) {
+    if(err) {
+      console.log('truncate failed!');
+    }
+else
+console.log('truncate done');
+}); 
+
+};
 module.exports = router;
+
+/*router.get('/testserv', function (req, res, next) {
+console.log(req.body);
+var options = {
+    timeZone: "America/New_York",
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric'
+};
+
+var formatter = new Intl.DateTimeFormat([], options);
+
+var UTCTime = new Date();
+var currentTime = formatter.format(new Date());
+ console.log("time"+currentTime);
+res.send(currentTime);
+}); */
 
