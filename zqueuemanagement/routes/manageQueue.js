@@ -5,7 +5,7 @@ const fast2sms = require('fast-two-sms');
 var bodyParser = require('body-parser');
 var dotenv = require('dotenv');
 const cron = require("node-cron");
-var shortUrl = require('node-url-shortener');
+var TinyURL = require('tinyurl');
 dotenv.config({
 path:'./.env'
 });
@@ -62,17 +62,23 @@ db.query(getStoreDatasql, function(err, rows, fields) {
 });
 
 /* get method for fetch particular qno. */
-router.get('/qinfo/:id', function(req, res, next) {
+router.get('/qinfo/:storeid/:id', function(req, res, next) {
   var id = req.params.id;
-console.log(id);
-  var sql = `SELECT * FROM QManagement WHERE id =${id}`;
+var storeid = req.params.storeid;
+console.log(id+"store"+storeid);
+  var sql = `SELECT * FROM QManagement WHERE QNO =${id} and STORENO =${storeid} and OUTFLOW!=1`;
   db.query(sql, function(err, row, fields) {
     if(err) {
       res.status(500).send({ error: 'Something failed!' })
     }
+	if(row[0]){
     res.json(row[0])
+}else{
+res.status(400).send('No information found for the qnumber'+id);
+}
   })
 });
+
 
 /* update method for [articular qno */
 router.post('/qupdate', function(req, res, next) {
@@ -81,11 +87,18 @@ router.post('/qupdate', function(req, res, next) {
   var storeno = req.body.storeno; 
   var  inflow = req.body.inflow;
   var outflow = req.body.outflow;
+var headcount = req.body.headcount;
+if(req.body.headcount)
+{
+headcount = req.body.headcount;
+}else{
+headcount = 1;
+}
   var sql;
 	if(inflow == 1){
-  sql = `UPDATE QManagement SET INFLOW=1,OUTFLOW=0,CHANGEDATETIME=NOW() WHERE STORENO=${storeno} and CUSTOMERPHONE=${cust_phone}`;
+  sql = `UPDATE QManagement SET INFLOW=1,OUTFLOW=0,HEADCOUNT=${headcount},CHANGEDATETIME=NOW() WHERE STORENO=${storeno} and CUSTOMERPHONE=${cust_phone}`;
   }else if(outflow ==1){
-sql = `UPDATE QManagement SET OUTFLOW=1,INFLOW=0,CHANGEDATETIME=NOW() WHERE STORENO=${storeno} and CUSTOMERPHONE=${cust_phone}`;
+sql = `UPDATE QManagement SET OUTFLOW=1,INFLOW=0,HEADCOUNT=${headcount},CHANGEDATETIME=NOW() WHERE STORENO=${storeno} and CUSTOMERPHONE=${cust_phone}`;
 }
 db.query(sql, function(err, result) {
     if(err) {
@@ -102,14 +115,6 @@ res.json(row[0]);
 })
 });
 
-async function getShortURL(url){
-var a = shortUrl.short(url, function(err, url){
-    console.log(url);
-return url;
-});
-return a;
-}
-
 /*post method for create qno*/
 /*post method for create qno*/
 var ActivequeueCount;
@@ -122,32 +127,49 @@ var oFinalOutput = {
   storename: '',
   brand: '',
   priorityqno:'',
-  location: ''
+  location: '',
+headcount : ''
 // SMSsent : ''
 };
 var priorityqcount;
 var insertqnoSQL ;
 var currentTime;
 var shortURL;
+var currentqno;
 router.post('/qbook', function (req, res, next) {
 //console.log(req.body);
-  var getCount = `SELECT * FROM QManagement where INFLOW = 1 and STORENO=${req.body.storeno}`;
+  var getCount = `SELECT SUM(HEADCOUNT) as sumhead FROM QManagement where INFLOW = 1 and STORENO=${req.body.storeno}`;
   db.query(getCount, function (err, row, fields) {
     if (err) {
       res.status(500).send({ error: 'Oops an error occured during the count!' })
     }
-	if(row)
-    ActivequeueCount = row.length;
+	if(row[0].sumhead)
+    ActivequeueCount = row[0].sumhead;
 else 
 ActivequeueCount = 0;
+console.log("activeq"+row[0].sumhead+"ho gya"+row[1]+"ek auyr"+ActivequeueCount);
   })
 var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where OUTFLOW !=1 and STORENO=${req.body.storeno}`;
             db.query(selectpriorityqno,function (err, row, fields) {
               if (err) {
                 res.status(500).send({ error: 'Oops an error occured during the priority que fetch!' })
               }
+	if(row[0].count)
          priorityqcount =parseInt(row[0].count)+1;
+else
+priorityqcount = 1;
 })
+var selectqno = `SELECT MAX(QNO) as count FROM QManagement where OUTFLOW !=1 and STORENO=${req.body.storeno}`;
+  db.query(selectqno, function (err, row, fields) {
+    if (err) {
+      res.status(500).send({ error: 'Oops an error occured during the priority que fetch!' })
+    }
+	if(row[0].count)
+    currentqno = parseInt(row[0].count) + 1;
+else
+currentqno = 1;
+  })
+
   next()
 }, function (req, res, next) {
 console.log(req.body);
@@ -164,7 +186,15 @@ console.log(currentTime);
   var cust_name = req.body.customername;
   var storeno = req.body.storeno;
   var iscardholder = req.body.iscardholder;
+  var headcount = req.body.headcount;
   var currentdatetime = new Date();
+if(req.body.headcount){
+headcount = req.body.headcount;
+}else{
+headcount = 1;
+}
+
+console.log(headcount);
   var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone} and STORENO=${storeno}`;
   db.query(getCount, function (err, row, fields) {
     if (err) {
@@ -190,13 +220,14 @@ console.log(currentTime);
 	res.status(400).send({ msg: 'Thank you for visiting our Store.We are open from 12PM to 7PM everyday. Hope to see you soon.' });
 	return;	
 } */
-      var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}",NOW())`;
+var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER,HEADCOUNT, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}","${headcount}",NOW())`;
       db.query(sql, function (err, result) {
         if (err) {
           res.status(500).send({ error: 'Oops we coulnt create a queue for you. Please again!' })
         }
         //console.log(result);
         var updatedRow = result.insertId;
+	ActivequeueCount = ActivequeueCount+headcount;
 	if(ActivequeueCount>20)
             oFinalOutput.waittime = parseInt(ActivequeueCount/20);
             else
@@ -204,11 +235,11 @@ console.log(currentTime);
 	if(iscardholder == 1){
 	oFinalOutput.priorityqno=priorityqcount;
 	//console.log(oFinalOutput.priorityqno+"text"+priorityqcount);
-	insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow},WAITTIME="${oFinalOutput.waittime}",PRIORITYQNO=${oFinalOutput.priorityqno} where id=${updatedRow}`;
+	insertqnoSQL = `UPDATE QManagement SET QNO=${currentqno},WAITTIME="${oFinalOutput.waittime}",PRIORITYQNO=${oFinalOutput.priorityqno} where id=${updatedRow}`;
        // console.log(insertqnoSQL); 
 	 }else{
 	oFinalOutput.priorityqno=0;
-        insertqnoSQL = `UPDATE QManagement SET QNO=${updatedRow},WAITTIME="${oFinalOutput.waittime}" where id=${updatedRow}`;
+        insertqnoSQL = `UPDATE QManagement SET QNO=${currentqno},WAITTIME="${oFinalOutput.waittime}" where id=${updatedRow}`;
        	}
 	   db.query(insertqnoSQL, function (err, rows, fields) {
           if (err) {
@@ -223,6 +254,7 @@ console.log(currentTime);
             oFinalOutput.customerphone = rows[0].CUSTOMERPHONE;
             oFinalOutput.storeno = rows[0].STORENO;
             oFinalOutput.qno = rows[0].QNO;
+oFinalOutput.headcount = rows[0].HEADCOUNT;
             //oFinalOutput.currentqueue = ActivequeueCount
 	    var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${oFinalOutput.storeno}`;
             db.query(getStoreDatasql, function (err, rows, fields) {
@@ -236,15 +268,45 @@ var Surl ="https://master.d1zs89y43xrlec.amplifyapp.com/bookingConfirmation?stor
 	// oFinalOutput.priorityqno = '';
 	console.log(Surl);
 
-/*shortUrl.short(Surl, function(err, url){
-    console.log(url);
-shortURL = url;
-
-*/
 Surl = encodeURI(Surl);
 console.log(Surl);
-         var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
-var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here \n"+Surl;
+var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+","+oFinalOutput.location;
+var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here</a> \n"+Surl;
+var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here\n"+Surl;
+        var finalmsg;   
+if(iscardholder == 1){
+finalmsg = msgstring2;
+        }else{
+finalmsg= msgString;
+        } 
+/*TinyURL.shorten(Surl).then(function(res) {
+    console.log(res)
+Surl = res;
+var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+","+oFinalOutput.location;
+var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here \n"+Surl;
+var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here\n"+Surl;
+        var finalmsg;   
+if(iscardholder == 1){
+finalmsg = msgstring2;
+        }else{
+finalmsg= msgString;
+        }
+twilio_client.messages.create({
+        to:oFinalOutput.customerphone,
+        from:'+17135681789',
+        body :finalmsg
+},function (err,msg){
+        if(err){
+        console.log(err);       
+} 
+console.log(msg);
+});  
+res.json(oFinalOutput)
+}, function(err) {
+    console.log(err)
+Surl = encodeURI(Surl);
+var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+","+oFinalOutput.location;
+var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here \n" + Surl;
 var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here\n"+Surl;
         var finalmsg;   
 if(iscardholder == 1){
@@ -252,6 +314,20 @@ finalmsg = msgstring2;
         }else{
 finalmsg= msgString;
         }
+twilio_client.messages.create({
+        to:oFinalOutput.customerphone,
+        from:'+17135681789',
+        body :finalmsg
+},function (err,msg){
+        if(err){
+        console.log(err);       
+} 
+console.log(msg);
+});  
+
+res.json(oFinalOutput)
+})
+*/
       twilio_client.messages.create({
         to:oFinalOutput.customerphone,
         from:'+17135681789',
@@ -263,38 +339,7 @@ finalmsg= msgString;
 console.log(msg);
 });  
 console.log("here is "+finalmsg); 
-//}) 
-/*console.log("return"+shortURL);
-	 var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+".";
-var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\nYour booking details are available here "+shortURL;
-var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here "+shortURL;
-	var finalmsg;	
-if(iscardholder == 1){
-finalmsg = msgstring2;
-	}else{
-finalmsg= msgString;
-	}
-console.log("small"+shortURL);
-/*var num = oFinalOutput.customerphone.split("+91")[1];
-	var  info = await fast2sms.sendMessage({
-	authorization:'Bc1nE7haDPtUV6zCmXZNLRYd4f5l3xHeuyoS9QFT2bMJviskIKdhEsZ40JMuplk9XN7za5Ie8DOvrGmT',
-	message :finalmsg,
-	numbers:[num]
-	});
-/*	oFinalOutput.SMSsent = info.return;*/
-	
-/*	twilio_client.messages.create({
-	to:oFinalOutput.customerphone,
-	from:'+17135681789',
-	body :finalmsg
-},function (err,msg){
-	if(err){
-	console.log(err);	
-} 
-console.log(msg);
-}); */  
-//console.log("here is "+finalmsg); 
-        res.json(oFinalOutput)
+    res.json(oFinalOutput)
   	})
 
           })
@@ -398,21 +443,40 @@ console.log('truncate done');
 }); 
 
 };
-module.exports = router;
 
-/*router.get('/testserv', function (req, res, next) {
-console.log(req.body);
-var options = {
-    timeZone: "America/New_York",
-    year: 'numeric', month: 'numeric', day: 'numeric',
-    hour: 'numeric', minute: 'numeric', second: 'numeric'
+router.get('/schedulesmsjob/:id', function (req, res, next) {
+  console.log('smthing1');
+var id = req.params.id;
+var myVar;
+if(id == 1){
+myVar = setInterval(cronsmsSchedule, 1000);
+}
+else{
+clearInterval(myVar);
+}
+
+});
+
+
+async function cronsmsSchedule() {
+  console.log('func');
+  var getCount = `SELECT * FROM QManagement where STORENO='3010'`;
+  db.query(getCount, function (err, row, fields) {
+    if (err) {
+      res.status(500).send({ error: 'Oops an error occured during the count!' })
+    }
+    if (row)
+      ActivequeueCount = row.length;
+    else
+      ActivequeueCount = 0;
+  })
+  console.log(ActivequeueCount);
+
 };
 
-var formatter = new Intl.DateTimeFormat([], options);
 
-var UTCTime = new Date();
-var currentTime = formatter.format(new Date());
- console.log("time"+currentTime);
-res.send(currentTime);
-}); */
+
+
+module.exports = router;
+
 
