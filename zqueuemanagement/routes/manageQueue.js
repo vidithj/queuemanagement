@@ -353,14 +353,223 @@ console.log("here is "+finalmsg);
   //res.json(oFinalOutput)
 });
 
-
-
+/* inbound sms trigger */
+var ActiveCount;
+var oOutput = {
+  customername: '',
+  customerphone: '',
+  storeno: '',
+  qno: '',
+  waittime: '',
+  storename: '',
+  brand: '',
+  priorityqno:'',
+  location: '',
+headcount : ''
+// SMSsent : ''
+};
+var prioritycount;
+var insertSQL ;
+var currentTime;
+var shortURL;
+var currentqno;
+var storeno;
 router.post('/qsmsbook', function (req, res, next) {
 console.log(req.body);
 var msgFrom = req.body.From;
 var msgBody = req.body.Body;
-res.send(`<Response><Message>Hello ${msgFrom} and said ${msgBody}.</Message></Response>`);
+storeno = msgBody.split(" ")[1]
+//code from qbook
+var getCount = `SELECT SUM(HEADCOUNT) as sumhead FROM QManagement where INFLOW = 1 and STORENO=${storeno}`;
+  db.query(getCount, function (err, row, fields) {
+    if (err) {
+      res.status(500).send({ error: 'Oops an error occured during the count!' })
+    }
+	if(row[0].sumhead)
+  ActiveCount = row[0].sumhead;
+else 
+ActiveCount = 0;
+console.log("activeq"+row[0].sumhead+"ho gya"+row[1]+"ek auyr"+ActiveCount);
+  })
+var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where OUTFLOW !=1 and STORENO=${storeno}`;
+            db.query(selectpriorityqno,function (err, row, fields) {
+              if (err) {
+                res.status(500).send({ error: 'Oops an error occured during the priority que fetch!' })
+              }
+	if(row[0].count)
+         storeno =parseInt(row[0].count)+1;
+else
+prioritycount = 1;
+})
+var selectqno = `SELECT MAX(QNO) as count FROM QManagement where OUTFLOW !=1 and STORENO=${storeno}`;
+  db.query(selectqno, function (err, row, fields) {
+    if (err) {
+      res.status(500).send({ error: 'Oops an error occured during the priority que fetch!' })
+    }
+	if(row[0].count)
+    currentqno = parseInt(row[0].count) + 1;
+else
+currentqno = 1;
+  })
+
+  next()
+}, function (req, res, next) {
+console.log(req.body);
+var options = {
+    timeZone: "America/New_York",
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric'
+};
+var formatter = new Intl.DateTimeFormat([], options);
+  var USATime = formatter.format(new Date());
+ currentTime = new Date(USATime);
+console.log(currentTime);
+  var cust_phone = req.body.From;
+  var cust_name = "Customer";
+  var iscardholder = 0;
+  var headcount = 1;
+  var currentdatetime = new Date();
+if(req.body.headcount){
+headcount = 1;
+}else{
+headcount = 1;
+}
+
+console.log(headcount);
+  var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone} and STORENO=${storeno}`;
+  db.query(getCount, function (err, row, fields) {
+    if (err) {
+      res.status(500).send({ error: 'Oops an error occured. Please try again later' })
+    }
+	console.log(currentdatetime);
+    if (row.length == 1) {
+	var oresObj = {
+         "qno" : '',
+         "customername" :'',
+         "storeno" : ''
+        }
+    oresObj.qno = row[0].QNO;
+    oresObj.customername = row[0].CUSTOMERNAME;
+    oresObj.storeno = row[0].STORENO;
+      res.status(400).send(oresObj);
+    } else if (row.length == 0) {
+/*	if(currentTime.getHours() >= 18 && currentTime.getHours() <= 19 && ActivequeueCount > 20){
+	res.status(400).send({ msg: 'Thank you for visiting our Store but we are currently closing. Hope you visit us tomorrow again' });
+	return;
+	}
+	if(currentTime.getHours()>= 19 || currentTime.getHours()<= 11){
+	res.status(400).send({ msg: 'Thank you for visiting our Store.We are open from 12PM to 7PM everyday. Hope to see you soon.' });
+	return;	
+} */
+var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER,HEADCOUNT, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}","${headcount}",NOW())`;
+      db.query(sql, function (err, result) {
+        if (err) {
+          res.status(500).send({ error: 'Oops we coulnt create a queue for you. Please again!' })
+        }
+        //console.log(result);
+        var updatedRow = result.insertId;
+        ActiveCount = ActiveCount;
+	if(ActiveCount>20)
+  oOutput.waittime = parseInt(ActiveCount/20);
+            else
+            oOutput.waittime ="0";
+	if(iscardholder == 1){
+    oOutput.priorityqno=prioritycount;
+	//console.log(oFinalOutput.priorityqno+"text"+priorityqcount);
+	insertSQL = `UPDATE QManagement SET QNO=${currentqno},WAITTIME="${oOutput.waittime}",PRIORITYQNO=${oOutput.priorityqno} where id=${updatedRow}`;
+       // console.log(insertSQL); 
+	 }else{
+    oOutput.priorityqno=0;
+    insertSQL = `UPDATE QManagement SET QNO=${currentqno},WAITTIME="${oOutput.waittime}" where id=${updatedRow}`;
+       	}
+	   db.query(insertSQL, function (err, rows, fields) {
+          if (err) {
+            res.status(500).send({ error: 'update qno failed!!'+err })
+          }
+          var getupdateDatasql = `SELECT * FROM QManagement where id=${updatedRow}`;
+          db.query(getupdateDatasql, function (err, rows, fields) {
+            if (err) {
+              res.status(500).send({ error: 'insert data retrieval failed!!' })
+            }
+            oOutput.customername = rows[0].CUSTOMERNAME;
+            oOutput.customerphone = rows[0].CUSTOMERPHONE;
+            oOutput.storeno = rows[0].STORENO;
+            oOutput.qno = rows[0].QNO;
+            oOutput.headcount = rows[0].HEADCOUNT;
+            //oFinalOutput.currentqueue = ActivequeueCount
+	    var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${oOutput.storeno}`;
+            db.query(getStoreDatasql, function (err, rows, fields) {
+           if (err) {
+            res.status(500).send({ error: 'store data retreival failed!!' })
+           }
+           oOutput.storename = rows[0].STORENAME;
+           oOutput.brand = rows[0].BRAND;
+           oOutput.location = rows[0].Location;
+var Surl ="https://master.d1zs89y43xrlec.amplifyapp.com/bookingConfirmation?storeName="+oFinalOutput.storename+"&qno="+oFinalOutput.qno+"&customerName="+oFinalOutput.customername+"&location="+oFinalOutput.location+"&brand="+oFinalOutput.brand+"&waitTime="+oFinalOutput.waittime+"&isCardHolder="+iscardholder ;
+	// oFinalOutput.priorityqno = '';
+	console.log(Surl);
+
+Surl = encodeURI(Surl);
+console.log(Surl);
+/*var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+","+oFinalOutput.location;
+var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here</a> \n"+Surl;
+var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here\n"+Surl;
+        var finalmsg;   
+if(iscardholder == 1){
+finalmsg = msgstring2;
+        }else{
+finalmsg= msgString;
+        }*/ 
+TinyURL.shorten(Surl).then(function(rurl) {
+    console.log(rurl)
+Surl = rurl;
+var msg = "Hi "+ oOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oOutput.storename+","+oOutput.location;
+var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oOutput.priorityqno+".Your approx waiting time is "+oOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here \n"+Surl;
+var msgString = msg+"\n Your queue no is "+oOutput.qno +".Your approx waiting time is "+oOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here\n"+Surl;
+        var finalmsg;   
+if(iscardholder == 1){
+finalmsg = msgstring2;
+        }else{
+finalmsg= msgString;
+        }
+console.log(oOutput.customerphone);
+res.send(`<Response><Message>${finalmsg}</Message></Response>`);
+//res.json(oOutput)
+}, function(err) {
+    console.log(err)
+Surl = encodeURI(Surl);
+var msg = "Hi "+ oOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oOutput.storename+","+oOutput.location;
+var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oOutput.priorityqno+".Your approx waiting time is "+oOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here \n" + Surl;
+var msgString = msg+"\n Your queue no is "+oOutput.qno +".Your approx waiting time is "+oOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here\n"+Surl;
+        var finalmsg;   
+if(iscardholder == 1){
+finalmsg = msgstring2;
+        }else{
+finalmsg= msgString;
+        }
+res.send(`<Response><Message>${finalmsg}</Message></Response>`);
+})
+  	}) 
+
+          })
+        })
+      })
+
+    }
+
+  })
+//code ended
+//res.send(`<Response><Message>Hello ${msgFrom} and said ${msgBody}.</Message></Response>`);
 });
+
+
+
+
+
+
+
+/*inbound sms end */
+
 
 /* delete particular id  */
 router.delete('/qdelete/:id', function(req, res, next) {
