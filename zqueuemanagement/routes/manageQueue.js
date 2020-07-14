@@ -227,7 +227,7 @@ var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOL
         }
         //console.log(result);
         var updatedRow = result.insertId;
-	ActivequeueCount = ActivequeueCount+headcount;
+	ActivequeueCount = ActivequeueCount;
 	if(ActivequeueCount>20)
             oFinalOutput.waittime = parseInt(ActivequeueCount/20);
             else
@@ -270,7 +270,7 @@ var Surl ="https://master.d1zs89y43xrlec.amplifyapp.com/bookingConfirmation?stor
 
 Surl = encodeURI(Surl);
 console.log(Surl);
-var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+","+oFinalOutput.location;
+/*var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+","+oFinalOutput.location;
 var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here</a> \n"+Surl;
 var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here\n"+Surl;
         var finalmsg;   
@@ -278,10 +278,10 @@ if(iscardholder == 1){
 finalmsg = msgstring2;
         }else{
 finalmsg= msgString;
-        } 
-/*TinyURL.shorten(Surl).then(function(res) {
-    console.log(res)
-Surl = res;
+        }*/ 
+TinyURL.shorten(Surl).then(function(rurl) {
+    console.log(rurl)
+Surl = rurl;
 var msg = "Hi "+ oFinalOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oFinalOutput.storename+","+oFinalOutput.location;
 var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oFinalOutput.priorityqno+".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here \n"+Surl;
 var msgString = msg+"\n Your queue no is "+oFinalOutput.qno +".Your approx waiting time is "+oFinalOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here\n"+Surl;
@@ -291,6 +291,7 @@ finalmsg = msgstring2;
         }else{
 finalmsg= msgString;
         }
+console.log(oFinalOutput.customerphone);
 twilio_client.messages.create({
         to:oFinalOutput.customerphone,
         from:'+17135681789',
@@ -327,7 +328,7 @@ console.log(msg);
 
 res.json(oFinalOutput)
 })
-*/
+/*
       twilio_client.messages.create({
         to:oFinalOutput.customerphone,
         from:'+17135681789',
@@ -339,8 +340,8 @@ res.json(oFinalOutput)
 console.log(msg);
 });  
 console.log("here is "+finalmsg); 
-    res.json(oFinalOutput)
-  	})
+    res.json(oFinalOutput) */
+  	}) 
 
           })
         })
@@ -358,13 +359,7 @@ router.post('/qsmsbook', function (req, res, next) {
 console.log(req.body);
 var msgFrom = req.body.From;
 var msgBody = req.body.Body;
-res.send(`
-<Response>
-<Message>
-Hello ${msgFrom} and said ${msgBody}.
-</Message>
-</Response>
-`);
+res.send(`<Response><Message>Hello ${msgFrom} and said ${msgBody}.</Message></Response>`);
 });
 
 /* delete particular id  */
