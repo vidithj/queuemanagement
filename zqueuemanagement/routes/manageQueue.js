@@ -353,6 +353,8 @@ console.log("here is "+finalmsg);
   //res.json(oFinalOutput)
 });
 
+
+
 /* inbound sms trigger */
 var ActiveCount;
 var oOutput = {
@@ -378,12 +380,14 @@ router.post('/qsmsbook', function (req, res, next) {
 console.log(req.body);
 var msgFrom = req.body.From;
 var msgBody = req.body.Body;
-storeno = msgBody.split(" ")[1]
+storeno = msgBody.split(" ")[1];
+console.log(storeno);
+console.log(msgFrom);
 //code from qbook
 var getCount = `SELECT SUM(HEADCOUNT) as sumhead FROM QManagement where INFLOW = 1 and STORENO=${storeno}`;
   db.query(getCount, function (err, row, fields) {
     if (err) {
-      res.status(500).send({ error: 'Oops an error occured during the count!' })
+      console.log('Oops an error occured during the count!' );
     }
 	if(row[0].sumhead)
   ActiveCount = row[0].sumhead;
@@ -394,7 +398,7 @@ console.log("activeq"+row[0].sumhead+"ho gya"+row[1]+"ek auyr"+ActiveCount);
 var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where OUTFLOW !=1 and STORENO=${storeno}`;
             db.query(selectpriorityqno,function (err, row, fields) {
               if (err) {
-                res.status(500).send({ error: 'Oops an error occured during the priority que fetch!' })
+                console.log('Oops an error occured during the priority que fetch!' )
               }
 	if(row[0].count)
          storeno =parseInt(row[0].count)+1;
@@ -404,7 +408,7 @@ prioritycount = 1;
 var selectqno = `SELECT MAX(QNO) as count FROM QManagement where OUTFLOW !=1 and STORENO=${storeno}`;
   db.query(selectqno, function (err, row, fields) {
     if (err) {
-      res.status(500).send({ error: 'Oops an error occured during the priority que fetch!' })
+      console.log('Oops an error occured during the priority que fetch!' )
     }
 	if(row[0].count)
     currentqno = parseInt(row[0].count) + 1;
@@ -425,6 +429,7 @@ var formatter = new Intl.DateTimeFormat([], options);
  currentTime = new Date(USATime);
 console.log(currentTime);
   var cust_phone = req.body.From;
+  console.log(cust_phone);
   var cust_name = "Customer";
   var iscardholder = 0;
   var headcount = 1;
@@ -439,7 +444,7 @@ console.log(headcount);
   var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone} and STORENO=${storeno}`;
   db.query(getCount, function (err, row, fields) {
     if (err) {
-      res.status(500).send({ error: 'Oops an error occured. Please try again later' })
+      console.log('Oops an error occured. Please try again later' )
     }
 	console.log(currentdatetime);
     if (row.length == 1) {
@@ -464,7 +469,7 @@ console.log(headcount);
 var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOLDER,HEADCOUNT, CREATEDDATETIME) VALUES ("${cust_name}","${cust_phone}", "${storeno}", "${iscardholder}","${headcount}",NOW())`;
       db.query(sql, function (err, result) {
         if (err) {
-          res.status(500).send({ error: 'Oops we coulnt create a queue for you. Please again!' })
+          console.log('Oops we coulnt create a queue for you. Please again!' )
         }
         //console.log(result);
         var updatedRow = result.insertId;
@@ -484,12 +489,12 @@ var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOL
        	}
 	   db.query(insertSQL, function (err, rows, fields) {
           if (err) {
-            res.status(500).send({ error: 'update qno failed!!'+err })
+            console.log('update qno failed!!'+err )
           }
           var getupdateDatasql = `SELECT * FROM QManagement where id=${updatedRow}`;
           db.query(getupdateDatasql, function (err, rows, fields) {
             if (err) {
-              res.status(500).send({ error: 'insert data retrieval failed!!' })
+              console.log('insert data retrieval failed!!' )
             }
             oOutput.customername = rows[0].CUSTOMERNAME;
             oOutput.customerphone = rows[0].CUSTOMERPHONE;
@@ -497,10 +502,10 @@ var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOL
             oOutput.qno = rows[0].QNO;
             oOutput.headcount = rows[0].HEADCOUNT;
             //oFinalOutput.currentqueue = ActivequeueCount
-	    var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${oOutput.storeno}`;
+	          var getStoreDatasql = `SELECT * FROM Store_Details where STORENO=${oOutput.storeno}`;
             db.query(getStoreDatasql, function (err, rows, fields) {
            if (err) {
-            res.status(500).send({ error: 'store data retreival failed!!' })
+            console.log('store data retreival failed!!' )
            }
            oOutput.storename = rows[0].STORENAME;
            oOutput.brand = rows[0].BRAND;
@@ -561,10 +566,6 @@ res.send(`<Response><Message>${finalmsg}</Message></Response>`);
 //code ended
 //res.send(`<Response><Message>Hello ${msgFrom} and said ${msgBody}.</Message></Response>`);
 });
-
-
-
-
 
 
 
