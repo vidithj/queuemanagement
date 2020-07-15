@@ -195,7 +195,7 @@ headcount = 1;
 }
 
 console.log(headcount);
-  var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone} and STORENO=${storeno}`;
+  var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone} and STORENO=${storeno} and OUTFLOW !=1`;
   db.query(getCount, function (err, row, fields) {
     if (err) {
       res.status(500).send({ error: 'Oops an error occured. Please try again later' })
@@ -401,7 +401,7 @@ var selectpriorityqno = `SELECT MAX(PRIORITYQNO) as count FROM QManagement where
                 console.log('Oops an error occured during the priority que fetch!' )
               }
 	if(row[0].count)
-         storeno =parseInt(row[0].count)+1;
+         prioritycount =parseInt(row[0].count)+1;
 else
 prioritycount = 1;
 })
@@ -441,7 +441,7 @@ headcount = 1;
 }
 
 console.log(headcount);
-  var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone} and STORENO=${storeno}`;
+  var getCount = `SELECT * FROM QManagement where CUSTOMERPHONE = ${cust_phone} and STORENO=${storeno} and OUTFLOW !=1`;
   db.query(getCount, function (err, row, fields) {
     if (err) {
       console.log('Oops an error occured. Please try again later' )
@@ -456,7 +456,8 @@ console.log(headcount);
     oresObj.qno = row[0].QNO;
     oresObj.customername = row[0].CUSTOMERNAME;
     oresObj.storeno = row[0].STORENO;
-      res.status(400).send(oresObj);
+var msgSent = 'You already have an active queue number at our store.Your queue number is '+oresObj.qno;
+      res.send(`<Response><Message>${msgSent}</Message></Response>`);
     } else if (row.length == 0) {
 /*	if(currentTime.getHours() >= 18 && currentTime.getHours() <= 19 && ActivequeueCount > 20){
 	res.status(400).send({ msg: 'Thank you for visiting our Store but we are currently closing. Hope you visit us tomorrow again' });
@@ -510,7 +511,8 @@ var sql = `INSERT INTO QManagement (CUSTOMERNAME,CUSTOMERPHONE,STORENO,ISCARDHOL
            oOutput.storename = rows[0].STORENAME;
            oOutput.brand = rows[0].BRAND;
            oOutput.location = rows[0].Location;
-var Surl ="https://master.d1zs89y43xrlec.amplifyapp.com/bookingConfirmation?storeName="+oFinalOutput.storename+"&qno="+oFinalOutput.qno+"&customerName="+oFinalOutput.customername+"&location="+oFinalOutput.location+"&brand="+oFinalOutput.brand+"&waitTime="+oFinalOutput.waittime+"&isCardHolder="+iscardholder ;
+console.log(oOutput);
+var Surl ="https://master.d1zs89y43xrlec.amplifyapp.com/bookingConfirmation?storeName="+oOutput.storename+"&qno="+oOutput.qno+"&customerName="+oOutput.customername+"&location="+oOutput.location+"&brand="+oOutput.brand+"&waitTime="+oOutput.waittime+"&isCardHolder="+iscardholder ;
 	// oFinalOutput.priorityqno = '';
 	console.log(Surl);
 
@@ -528,7 +530,7 @@ finalmsg= msgString;
 TinyURL.shorten(Surl).then(function(rurl) {
     console.log(rurl)
 Surl = rurl;
-var msg = "Hi "+ oOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oOutput.storename+","+oOutput.location;
+var msg = "Hi "+ oOutput.customername +","+"\n You have been successfully enrolled to our Queue at our store at"+oOutput.location;
 var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oOutput.priorityqno+".Your approx waiting time is "+oOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here \n"+Surl;
 var msgString = msg+"\n Your queue no is "+oOutput.qno +".Your approx waiting time is "+oOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are available here\n"+Surl;
         var finalmsg;   
@@ -543,7 +545,7 @@ res.send(`<Response><Message>${finalmsg}</Message></Response>`);
 }, function(err) {
     console.log(err)
 Surl = encodeURI(Surl);
-var msg = "Hi "+ oOutput.customername +","+"\n You have been successfully enrolled to our Queue at Store "+oOutput.storename+","+oOutput.location;
+var msg = "Hi "+ oOutput.customername +","+"\n You have been successfully enrolled to our Queue at our store at "+oOutput.location;
 var msgstring2 = msg+"\nYou are our priority customer and your priority queue no is "+oOutput.priorityqno+".Your approx waiting time is "+oOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here \n" + Surl;
 var msgString = msg+"\n Your queue no is "+oOutput.qno +".Your approx waiting time is "+oOutput.waittime+"hrs.\nWe wish you a great shopping experience.\n Your booking details are avaiable here\n"+Surl;
         var finalmsg;   
